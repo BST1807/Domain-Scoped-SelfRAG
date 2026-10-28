@@ -82,14 +82,14 @@ The following captures demonstrate the agent navigating different query types th
 ---
 
 ### Scenario 4: Production Observability & LangSmith Tracing
-> Every run, decision node, token count, and execution latency is tracked in real-time under the `domain-scoped-self-rag` project in LangSmith.
+> Real-time execution tree in LangSmith under project `domain-scoped-self-rag`, displaying full graph routing (`LangGraph` ➔ `domain_guardrail` ➔ `gemini-2.5-flash` [2.07s, 176 tokens] ➔ `PydanticOutputParser` ➔ `route_domain` ➔ `refusal_node`) alongside token metrics and state payload inspection.
 
 ![LangSmith Tracing](assets/screenshots/04_langsmith_tracing.png)
 
 ---
 
-### Scenario 5: Full Streamlit Application Overview
-> Clean, responsive interface featuring dynamic thought process accordions, active provider/model indicators, and one-click test prompts.
+### Scenario 5: Enterprise UI & Dynamic Thought Process Inspection
+> Full Streamlit interface with sidebar configuration (LLM provider selector, Gemini model config, active LangSmith tracing status, and sample test prompts) alongside real-time expandable `Agent Thought Process` verification blocks.
 
 ![Streamlit Application Overview](assets/screenshots/05_streamlit_overview.png)
 
