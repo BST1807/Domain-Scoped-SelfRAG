@@ -21,6 +21,38 @@ import graph
 importlib.reload(graph)
 from graph import app
 
+
+def _format_generation(raw_generation: Any) -> str:
+    """Extracts clean text if raw_generation contains dictionary chunks or signature metadata."""
+    import ast
+
+    if isinstance(raw_generation, str):
+        trimmed = raw_generation.strip()
+        if trimmed.startswith(("{'type'", '{"type"')):
+            try:
+                parsed = ast.literal_eval(trimmed)
+                if isinstance(parsed, dict) and "text" in parsed:
+                    return str(parsed["text"]).strip()
+            except Exception:
+                pass
+        return trimmed
+
+    if isinstance(raw_generation, dict):
+        return str(raw_generation.get("text", raw_generation)).strip()
+
+    if isinstance(raw_generation, list):
+        parts = []
+        for item in raw_generation:
+            if isinstance(item, dict) and "text" in item:
+                parts.append(str(item["text"]))
+            elif isinstance(item, str):
+                parts.append(item)
+            else:
+                parts.append(str(item))
+        return "".join(parts).strip()
+
+    return str(raw_generation).strip()
+
 # ---------------------------------------------------------------------------
 # Page Configuration & Styling
 # ---------------------------------------------------------------------------
@@ -117,10 +149,13 @@ with st.sidebar:
             st.session_state["active_gemini_key"] = gemini_key_input
             os.environ.pop("GOOGLE_API_KEY", None)
 
+        gemini_model_env = os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash")
+        gemini_options = ["gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-pro-latest"]
+        default_index = gemini_options.index(gemini_model_env) if gemini_model_env in gemini_options else 0
         selected_model = st.selectbox(
             "Gemini Model",
-            options=["gemini-2.5-flash", "gemini-flash-latest", "gemini-3.5-flash", "gemini-pro-latest"],
-            index=0,
+            options=gemini_options,
+            index=default_index,
         )
         os.environ["GEMINI_MODEL_NAME"] = selected_model
     else:
@@ -200,7 +235,7 @@ st.markdown(
 
 active_p = "Google Gemini" if os.getenv("LLM_PROVIDER", "gemini") == "gemini" else "OpenAI"
 active_m = (
-    os.getenv("GEMINI_MODEL_NAME", "gemini-3.5-flash")
+    os.getenv("GEMINI_MODEL_NAME", "gemini-3.8-flash")
     if active_p == "Google Gemini"
     else os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini")
 )
@@ -237,7 +272,7 @@ for msg in st.session_state["messages"]:
             with st.expander("Agent Thought Process", expanded=(msg["role"] == "assistant")):
                 for thought in msg["thought_process"]:
                     st.markdown(f"- {thought}")
-        st.markdown(msg["content"])
+        st.markdown(_format_generation(msg["content"]))
 
 
 # ---------------------------------------------------------------------------
@@ -270,12 +305,14 @@ if user_input:
                 "thought_process": [],
             }
 
+
             try:
                 final_state = app.invoke(initial_state)
-                generation = final_state.get(
+                raw_generation = final_state.get(
                     "generation",
                     "I am an AI company assistant. I can only answer questions related to our domain.",
                 )
+                generation = _format_generation(raw_generation)
                 thought_process = final_state.get("thought_process", [])
             except Exception as exc:
                 generation = f"An unexpected error occurred during workflow execution: {exc}"
