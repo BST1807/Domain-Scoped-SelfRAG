@@ -3,12 +3,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange.svg)](https://github.com/langchain-ai/langgraph)
 [![LangChain](https://img.shields.io/badge/LangChain-v0.2+-green.svg)](https://github.com/langchain-ai/langchain)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED.svg)](https://www.docker.com/)
+[![Uvicorn](https://img.shields.io/badge/Uvicorn-ASGI-2C5BB4.svg)](https://www.uvicorn.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-red.svg)](https://streamlit.io/)
 [![LangSmith](https://img.shields.io/badge/LangSmith-Tracing%20%26%20Eval-purple.svg)](https://smith.langchain.com/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4.svg)](https://ai.google.dev/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-3.5%20Flash-4285F4.svg)](https://ai.google.dev/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-black.svg)](https://openai.com/)
 
-A production-grade, enterprise AI knowledge assistant engineered with **LangGraph**, **LangChain**, **Pydantic Structured Outputs**, **LangSmith Observability**, and **Streamlit**. 
+A production-grade, enterprise AI knowledge assistant and microservice engineered with **LangGraph**, **LangChain**, **FastAPI**, **Docker**, **Pydantic Structured Outputs**, **LangSmith Observability**, and **Streamlit**. 
 
 The system implements a **Domain-Scoped Self-RAG** architecture that actively checks domain boundaries, routes between parametric LLM knowledge and enterprise retrieval, eliminates hallucinations via grounded verification loops, and provides total auditability via real-time thought-process inspection.
 
@@ -20,7 +23,9 @@ The system implements a **Domain-Scoped Self-RAG** architecture that actively ch
 - **Adaptive Retrieval Router**: Determines whether questions require proprietary internal documentation (`ShouldRetrieve`) or can be answered reliably from parametric LLM knowledge—reducing retrieval latency and API costs.
 - **Self-RAG Groundedness & Hallucination Loop**: Formulates responses and verifies claims against retrieved chunks (`IsSupported`). If hallucinations or unsupported claims are detected, it re-generates (capped at 2 iterations).
 - **Usefulness & Query Rewriting Loop**: Automatically assesses if the response answers the user's intent (`IsUseful`). If unhelpful, it rewrites the query with semantic expansion and re-retrieves.
-- **Multi-Provider Support**: Seamlessly switch between **Google Gemini** (`gemini-2.5-flash`, `gemini-3.5-flash`) and **OpenAI** (`gpt-4o-mini`, `gpt-4o`).
+- **Production REST Microservice**: Containerized **FastAPI** service with `/chat` and `/health` endpoints, strict Pydantic validation, latency telemetry, and interactive OpenAPI documentation at `/docs`.
+- **Docker Containerization**: Lightweight, portable `python:3.11-slim` container setup ready for cloud hosting (AWS ECS, GCP Cloud Run, or Kubernetes).
+- **Multi-Provider Support**: Seamlessly switch between **Google Gemini** (`gemini-3.5-flash`, `gemini-3.8-flash`) and **OpenAI** (`gpt-4o-mini`, `gpt-4o`).
 - **Complete LangSmith Tracing**: Full latency, token consumption, and node-by-node execution graphs automatically logged to LangSmith.
 - **Auditable Streamlit UI**: Chat interface with real-time `Agent Thought Process` expanders displaying guardrail verdicts, routing rationales, and verification logs.
 
@@ -49,6 +54,59 @@ flowchart TD
     Usefulness -->|is_useful == False & loop < 2| Rewrite[Query Rewriter]
     Rewrite --> Retrieve
     Usefulness -->|is_useful == True| DeliverAnswer([Deliver Response])
+```
+
+---
+
+## ⚡ Production FastAPI Microservice & Docker Deployment
+
+The compiled LangGraph Self-RAG agent is exposed via a production-grade **FastAPI** microservice, providing high-performance REST endpoints for enterprise integration.
+
+### Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Diagnostic probe verifying microservice readiness, liveness, and active LLM version. |
+| `POST` | `/chat` | Runs the user query through the LangGraph Self-RAG graph; returns answer, latency, and model version. |
+| `GET` | `/docs` | Interactive Swagger UI for live API testing and OpenAPI schema inspection. |
+
+#### Sample Request (`POST /chat`):
+```json
+{
+  "question": "What is our company's policy on customer data retention and zero data retention (ZDR)?"
+}
+```
+
+#### Sample Response:
+```json
+{
+  "answer": "Based on our internal documentation, our company operates under strict Zero Data Retention (ZDR) guarantees. User data is never persisted to disk or used for foundation model training. Outbound API requests require automated PII redaction and SHA-256 cryptographic audit logging.",
+  "latency": 13.7993,
+  "model_version": "gemini-3.5-flash"
+}
+```
+
+---
+
+### Running the Microservice
+
+#### Option A: Run Locally via Uvicorn
+```bash
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+* Interactive Swagger UI: `http://localhost:8000/docs`
+
+#### Option B: Run via Docker (Recommended for Production)
+```bash
+# 1. Build the Docker image
+docker build -t domain-scoped-self-rag-api .
+
+# 2. Run container with environment configuration
+docker run -d --name self-rag-service -p 8000:8000 --env-file .env domain-scoped-self-rag-api
+
+# 3. View live logs
+docker logs -f self-rag-service
 ```
 
 ---
@@ -82,7 +140,7 @@ The following captures demonstrate the agent navigating different query types th
 ---
 
 ### Scenario 4: Production Observability & LangSmith Tracing
-> Real-time execution tree in LangSmith under project `domain-scoped-self-rag`, displaying full graph routing (`LangGraph` ➔ `domain_guardrail` ➔ `gemini-2.5-flash` [2.07s, 176 tokens] ➔ `PydanticOutputParser` ➔ `route_domain` ➔ `refusal_node`) alongside token metrics and state payload inspection.
+> Real-time execution tree in LangSmith under project `domain-scoped-self-rag`, displaying full graph routing (`LangGraph` ➔ `domain_guardrail` ➔ `gemini-3.5-flash` [2.07s, 176 tokens] ➔ `PydanticOutputParser` ➔ `route_domain` ➔ `refusal_node`) alongside token metrics and state payload inspection.
 
 ![LangSmith Tracing](assets/screenshots/04_langsmith_tracing.png)
 
@@ -112,6 +170,9 @@ Domain-Scoped-SelfRAG/
 ├── graph.py                      # StateGraph assembly, conditional edges, loop safety
 ├── evaluate.py                   # LangSmith evaluation suite with quick & full benchmarks
 ├── frontend.py                   # Streamlit chat UI with real-time thought inspection
+├── api_models.py                 # Pydantic data contracts for FastAPI (ChatRequest/Response)
+├── main.py                       # FastAPI REST microservice with /chat and /health
+├── Dockerfile                    # Containerization recipe (python:3.11-slim + Uvicorn)
 ├── requirements.txt              # Project dependencies
 ├── .env.example                  # Environment variable configuration template
 ├── .gitignore                    # Safeguards secrets, keys, and cache files
@@ -125,7 +186,7 @@ Domain-Scoped-SelfRAG/
 ### 1. Clone Repository & Install Dependencies
 
 ```bash
-git clone https://github.com/<your-username>/Domain-Scoped-SelfRAG.git
+git clone https://github.com/BST1807/Domain-Scoped-SelfRAG.git
 cd Domain-Scoped-SelfRAG
 pip install -r requirements.txt
 ```
@@ -144,7 +205,7 @@ LLM_PROVIDER=gemini
 
 # Google Gemini Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL_NAME=gemini-2.5-flash
+GEMINI_MODEL_NAME=gemini-3.5-flash
 
 # OpenAI Configuration (Optional)
 OPENAI_API_KEY=your_openai_api_key_here
@@ -165,7 +226,14 @@ streamlit run frontend.py
 ```
 Open `http://localhost:8501` in your browser.
 
-### 4. Run Guardrail Benchmarks & Evaluation
+### 4. Launch the FastAPI Microservice
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+Open `http://localhost:8000/docs` for interactive Swagger documentation.
+
+### 5. Run Guardrail Benchmarks & Evaluation
 
 Run the automated evaluation benchmark:
 ```bash
